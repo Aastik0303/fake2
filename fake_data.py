@@ -135,7 +135,7 @@ init_database()
 
 # Load the pre-trained model
 try:
-    model = load_model('deepfake_detector_model4.h5')
+    model = load_model('deepfake_detector_model.tflite)
     print("Model loaded successfully!")
 except Exception as e:
     print(f"Error loading model: {e}")
