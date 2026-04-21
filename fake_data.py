@@ -6,429 +6,753 @@ import numpy as np
 import io
 import os
 import base64
-from datetime import datetime
 
 app = Flask(__name__)
 
-# Load the pre-trained model
+# Load model
 try:
-    model = load_model('deepfake_detector_model.tflite')
+    model = load_model('deepfake_detector_model4.h5')
     print("✅ Model loaded successfully!")
 except Exception as e:
     print(f"❌ Error loading model: {e}")
     model = None
 
-
 def preprocess_image(image):
-    """
-    Preprocess the uploaded image to match the model's input requirements.
-    Resize to 128x128, convert to RGB, normalize to [0,1]
-    """
-    # Resize image to 128x128
+    """Preprocess image to 128x128 for model input"""
     image = image.resize((128, 128))
-    
-    # Convert to RGB if not already
     if image.mode != 'RGB':
         image = image.convert('RGB')
-    
-    # Convert to numpy array and normalize to [0, 1]
     image_array = np.array(image) / 255.0
-    
-    # Add batch dimension
     image_array = np.expand_dims(image_array, axis=0)
-    
     return image_array
 
-
-# HTML Template - Clean & Simple UI
+# Modern, Working UI Template
 INDEX_HTML = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Deepfake Detector | AI-Powered</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <title>DeepDetect AI | Deepfake Detection</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
+            padding: 20px;
         }
-        
-        .glass-card {
-            background: rgba(255, 255, 255, 0.08);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
         }
-        
+
+        /* Header */
+        .header {
+            text-align: center;
+            padding: 30px 20px;
+            color: white;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 15px;
+        }
+
+        .logo i {
+            font-size: 40px;
+            background: rgba(255,255,255,0.2);
+            padding: 15px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        .logo h1 {
+            font-size: 36px;
+            font-weight: 700;
+        }
+
+        .subtitle {
+            font-size: 18px;
+            opacity: 0.95;
+        }
+
+        /* Main Card */
+        .main-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 30px;
+            padding: 40px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            backdrop-filter: blur(10px);
+        }
+
+        /* Upload Area */
         .upload-area {
-            border: 2px dashed rgba(255, 255, 255, 0.3);
-            transition: all 0.3s ease;
+            border: 3px dashed #cbd5e1;
+            border-radius: 20px;
+            padding: 50px 30px;
+            text-align: center;
             cursor: pointer;
+            transition: all 0.3s ease;
+            background: #f8fafc;
         }
-        
+
         .upload-area:hover {
-            border-color: #6366f1;
-            background: rgba(99, 102, 241, 0.1);
+            border-color: #667eea;
+            background: #f1f5f9;
+            transform: translateY(-2px);
         }
-        
-        .pulse-glow {
-            animation: pulseGlow 2s infinite;
+
+        .upload-area.dragover {
+            border-color: #667eea;
+            background: #eef2ff;
         }
-        
-        @keyframes pulseGlow {
-            0%, 100% { box-shadow: 0 0 20px rgba(99, 102, 241, 0.3); }
-            50% { box-shadow: 0 0 40px rgba(99, 102, 241, 0.6); }
+
+        .upload-icon {
+            font-size: 60px;
+            color: #667eea;
+            margin-bottom: 20px;
         }
-        
-        .fade-in {
-            animation: fadeIn 0.6s ease-out;
+
+        .upload-text {
+            font-size: 20px;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 8px;
         }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
+
+        .upload-hint {
+            color: #64748b;
+            font-size: 14px;
         }
-        
-        .slide-up {
-            animation: slideUp 0.5s ease-out;
+
+        .file-input {
+            display: none;
         }
-        
+
+        /* Preview Section */
+        .preview-section {
+            margin-top: 30px;
+            display: none;
+        }
+
+        .preview-section.show {
+            display: block;
+        }
+
+        .image-container {
+            position: relative;
+            border-radius: 20px;
+            overflow: hidden;
+            background: #f1f5f9;
+            min-height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #imagePreview {
+            max-width: 100%;
+            max-height: 400px;
+            display: block;
+            margin: 0 auto;
+        }
+
+        /* Loading Overlay */
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            color: white;
+        }
+
+        .loading-overlay.show {
+            display: flex;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 15px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Results Card */
+        .results-card {
+            margin-top: 30px;
+            padding: 30px;
+            border-radius: 20px;
+            display: none;
+            animation: slideUp 0.5s ease;
+        }
+
+        .results-card.show {
+            display: block;
+        }
+
         @keyframes slideUp {
-            from { opacity: 0; transform: translateY(30px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
-        
-        .confidence-bar {
-            height: 8px;
+
+        .results-card.real {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+        }
+
+        .results-card.fake {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+        }
+
+        .result-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .result-icon {
+            font-size: 40px;
+            width: 70px;
+            height: 70px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .result-title {
+            flex: 1;
+        }
+
+        .result-title h3 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .result-title p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
+        .confidence-meter {
+            margin: 25px 0;
+        }
+
+        .confidence-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-weight: 500;
+        }
+
+        .confidence-bar-bg {
+            height: 12px;
+            background: rgba(255,255,255,0.2);
             border-radius: 10px;
-            background: rgba(255, 255, 255, 0.1);
             overflow: hidden;
         }
-        
-        .confidence-fill {
+
+        .confidence-bar-fill {
             height: 100%;
+            background: white;
             border-radius: 10px;
-            transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+            width: 0%;
+            transition: width 1s ease;
+        }
+
+        .explanation-box {
+            background: rgba(255,255,255,0.15);
+            padding: 20px;
+            border-radius: 15px;
+            margin: 20px 0;
+            border-left: 4px solid rgba(255,255,255,0.5);
+        }
+
+        .explanation-box i {
+            margin-right: 10px;
+            color: #fbbf24;
+        }
+
+        .explanation-box p {
+            line-height: 1.6;
+            font-size: 15px;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+            margin-top: 25px;
+        }
+
+        .btn {
+            padding: 14px 24px;
+            border: none;
+            border-radius: 15px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: white;
+            color: #1e293b;
+            flex: 1;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        }
+
+        .btn-secondary {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            flex: 1;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        /* Features Grid */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        .feature-card {
+            background: white;
+            padding: 25px;
+            border-radius: 20px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+
+        .feature-card i {
+            font-size: 30px;
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        .feature-card h4 {
+            font-size: 18px;
+            margin-bottom: 8px;
+            color: #1e293b;
+        }
+
+        .feature-card p {
+            font-size: 14px;
+            color: #64748b;
+        }
+
+        /* Error Message */
+        .error-message {
+            background: #fee;
+            color: #c33;
+            padding: 15px 20px;
+            border-radius: 15px;
+            margin-top: 20px;
+            display: none;
+            border-left: 4px solid #c33;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            .main-card {
+                padding: 25px;
+            }
+            
+            .logo h1 {
+                font-size: 28px;
+            }
+            
+            .upload-area {
+                padding: 30px 20px;
+            }
+            
+            .action-buttons {
+                flex-direction: column;
+            }
+            
+            .result-title h3 {
+                font-size: 22px;
+            }
         }
     </style>
 </head>
-<body class="p-4 md:p-8">
-    
-    <!-- Main Container -->
-    <div class="max-w-4xl mx-auto">
-        
+<body>
+    <div class="container">
         <!-- Header -->
-        <div class="text-center mb-10 fade-in">
-            <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-indigo-600/30 mb-4">
-                <i class="fas fa-shield-virus text-3xl text-indigo-400"></i>
+        <div class="header">
+            <div class="logo">
+                <i class="fas fa-shield-halved"></i>
+                <h1>DeepDetect AI</h1>
             </div>
-            <h1 class="text-4xl md:text-5xl font-bold text-white mb-3">
-                Deepfake <span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">Detector</span>
-            </h1>
-            <p class="text-gray-300 text-lg max-w-2xl mx-auto">
-                Upload an image to detect if it's AI-generated or manipulated using deepfake technology
-            </p>
+            <p class="subtitle">Advanced Deepfake Detection using CNN Technology</p>
         </div>
-        
-        <!-- Upload Card -->
-        <div class="glass-card rounded-3xl p-6 md:p-8 fade-in">
-            
+
+        <!-- Main Card -->
+        <div class="main-card">
             <!-- Upload Area -->
-            <div id="uploadArea" class="upload-area rounded-2xl p-8 md:p-12 text-center">
-                <input type="file" id="imageInput" accept="image/png,image/jpeg,image/jpg,image/webp,image/bmp" class="hidden">
-                
-                <div class="space-y-4">
-                    <div class="w-20 h-20 mx-auto rounded-full bg-indigo-600/20 flex items-center justify-center">
-                        <i class="fas fa-cloud-upload-alt text-4xl text-indigo-400"></i>
+            <div class="upload-area" id="uploadArea">
+                <input type="file" id="fileInput" class="file-input" accept="image/png,image/jpeg,image/jpg,image/webp,image/bmp">
+                <div class="upload-icon">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                </div>
+                <div class="upload-text">Choose an image or drag it here</div>
+                <div class="upload-hint">PNG, JPG, WEBP up to 16MB</div>
+            </div>
+
+            <!-- Error Message -->
+            <div class="error-message" id="errorMessage">
+                <i class="fas fa-exclamation-circle"></i>
+                <span id="errorText"></span>
+            </div>
+
+            <!-- Preview Section -->
+            <div class="preview-section" id="previewSection">
+                <div class="image-container">
+                    <img id="imagePreview" src="" alt="Preview">
+                    <div class="loading-overlay" id="loadingOverlay">
+                        <div class="spinner"></div>
+                        <p>Analyzing image with AI...</p>
+                        <p style="font-size: 14px; margin-top: 8px; opacity: 0.8;">This may take a few seconds</p>
                     </div>
-                    <div>
-                        <p class="text-white text-lg font-medium mb-1">Drop your image here or click to browse</p>
-                        <p class="text-gray-400 text-sm">PNG, JPG, WEBP up to 16MB</p>
+                </div>
+            </div>
+
+            <!-- Results Card -->
+            <div class="results-card" id="resultsCard">
+                <div class="result-header">
+                    <div class="result-icon" id="resultIcon">
+                        <i class="fas fa-check-circle"></i>
                     </div>
-                    <button id="uploadBtn" class="mt-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-6 py-3 rounded-full font-medium transition-all transform hover:scale-105">
-                        <i class="fas fa-folder-open mr-2"></i>Choose Image
+                    <div class="result-title">
+                        <h3 id="resultTitle">Authentic Image</h3>
+                        <p id="resultSubtitle">No signs of AI manipulation detected</p>
+                    </div>
+                </div>
+
+                <div class="confidence-meter">
+                    <div class="confidence-label">
+                        <span>Confidence Level</span>
+                        <span id="confidenceValue">95%</span>
+                    </div>
+                    <div class="confidence-bar-bg">
+                        <div class="confidence-bar-fill" id="confidenceBar"></div>
+                    </div>
+                </div>
+
+                <div class="explanation-box">
+                    <p>
+                        <i class="fas fa-info-circle"></i>
+                        <span id="explanationText">Our AI model analyzed this image and found natural patterns consistent with authentic photographs.</span>
+                    </p>
+                </div>
+
+                <div class="action-buttons">
+                    <button class="btn btn-primary" id="analyzeAnotherBtn">
+                        <i class="fas fa-upload"></i> Analyze Another
+                    </button>
+                    <button class="btn btn-secondary" id="downloadReportBtn">
+                        <i class="fas fa-download"></i> Download Report
                     </button>
                 </div>
             </div>
-            
-            <!-- Preview & Results -->
-            <div id="resultSection" class="hidden mt-8">
-                
-                <!-- Image Preview -->
-                <div class="relative rounded-2xl overflow-hidden bg-black/30">
-                    <img id="imagePreview" src="" alt="Preview" class="w-full max-h-96 object-contain mx-auto">
-                    
-                    <!-- Loading Overlay -->
-                    <div id="loadingOverlay" class="hidden absolute inset-0 bg-black/70 flex items-center justify-center">
-                        <div class="text-center">
-                            <div class="inline-block w-12 h-12 border-4 border-indigo-400 border-t-transparent rounded-full animate-spin mb-4"></div>
-                            <p class="text-white text-lg">Analyzing image...</p>
-                            <p class="text-gray-400 text-sm mt-1">Our AI is scanning for deepfake patterns</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Results Card -->
-                <div id="resultCard" class="hidden mt-6 glass-card rounded-2xl p-6 slide-up">
-                    
-                    <!-- Result Header -->
-                    <div class="flex items-center justify-between mb-4">
-                        <div class="flex items-center space-x-3">
-                            <div id="resultIcon" class="w-12 h-12 rounded-full flex items-center justify-center"></div>
-                            <div>
-                                <h3 id="resultTitle" class="text-2xl font-bold"></h3>
-                                <p id="resultSubtitle" class="text-sm opacity-80"></p>
-                            </div>
-                        </div>
-                        <div id="confidenceBadge" class="text-right">
-                            <p class="text-sm opacity-70">Confidence</p>
-                            <p id="confidenceValue" class="text-3xl font-bold"></p>
-                        </div>
-                    </div>
-                    
-                    <!-- Explanation (2 Lines) -->
-                    <div id="explanationBox" class="mt-4 p-4 rounded-xl bg-white/5 border border-white/10">
-                        <div class="flex items-start space-x-3">
-                            <i class="fas fa-lightbulb text-yellow-400 text-xl mt-0.5"></i>
-                            <div>
-                                <p id="explanationText" class="text-gray-200 leading-relaxed"></p>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Confidence Bar -->
-                    <div class="mt-5">
-                        <div class="flex justify-between text-sm mb-2">
-                            <span class="text-gray-400">Authentic</span>
-                            <span class="text-gray-400">Deepfake</span>
-                        </div>
-                        <div class="confidence-bar">
-                            <div id="confidenceFill" class="confidence-fill"></div>
-                        </div>
-                    </div>
-                    
-                    <!-- Action Buttons -->
-                    <div class="flex gap-3 mt-6">
-                        <button id="analyzeAnotherBtn" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-medium transition-colors">
-                            <i class="fas fa-upload mr-2"></i>Analyze Another
-                        </button>
-                        <button id="downloadReportBtn" class="flex-1 border border-white/30 hover:bg-white/10 text-white py-3 rounded-xl font-medium transition-colors">
-                            <i class="fas fa-download mr-2"></i>Download Report
-                        </button>
-                    </div>
-                </div>
-            </div>
         </div>
-        
-        <!-- Info Cards -->
-        <div class="grid md:grid-cols-3 gap-4 mt-8 fade-in">
-            <div class="glass-card rounded-2xl p-5 text-center">
-                <i class="fas fa-brain text-2xl text-indigo-400 mb-3"></i>
-                <h4 class="text-white font-medium mb-1">CNN Model</h4>
-                <p class="text-gray-400 text-sm">128x128 input, trained on deepfake datasets</p>
+
+        <!-- Features Grid -->
+        <div class="features-grid">
+            <div class="feature-card">
+                <i class="fas fa-brain"></i>
+                <h4>CNN Model</h4>
+                <p>128x128 input trained on extensive deepfake datasets</p>
             </div>
-            <div class="glass-card rounded-2xl p-5 text-center">
-                <i class="fas fa-bolt text-2xl text-yellow-400 mb-3"></i>
-                <h4 class="text-white font-medium mb-1">Fast Inference</h4>
-                <p class="text-gray-400 text-sm">Results in under 2 seconds</p>
+            <div class="feature-card">
+                <i class="fas fa-bolt"></i>
+                <h4>Real-time Analysis</h4>
+                <p>Get results in under 3 seconds</p>
             </div>
-            <div class="glass-card rounded-2xl p-5 text-center">
-                <i class="fas fa-shield-alt text-2xl text-green-400 mb-3"></i>
-                <h4 class="text-white font-medium mb-1">High Accuracy</h4>
-                <p class="text-gray-400 text-sm">95%+ detection rate on known deepfakes</p>
+            <div class="feature-card">
+                <i class="fas fa-shield"></i>
+                <h4>High Accuracy</h4>
+                <p>95%+ detection rate on known deepfakes</p>
             </div>
         </div>
     </div>
-    
+
     <script>
-        const imageInput = document.getElementById('imageInput');
-        const uploadBtn = document.getElementById('uploadBtn');
         const uploadArea = document.getElementById('uploadArea');
-        const resultSection = document.getElementById('resultSection');
+        const fileInput = document.getElementById('fileInput');
+        const previewSection = document.getElementById('previewSection');
         const imagePreview = document.getElementById('imagePreview');
         const loadingOverlay = document.getElementById('loadingOverlay');
-        const resultCard = document.getElementById('resultCard');
+        const resultsCard = document.getElementById('resultsCard');
         const resultIcon = document.getElementById('resultIcon');
         const resultTitle = document.getElementById('resultTitle');
         const resultSubtitle = document.getElementById('resultSubtitle');
         const confidenceValue = document.getElementById('confidenceValue');
+        const confidenceBar = document.getElementById('confidenceBar');
         const explanationText = document.getElementById('explanationText');
-        const confidenceFill = document.getElementById('confidenceFill');
+        const errorMessage = document.getElementById('errorMessage');
+        const errorText = document.getElementById('errorText');
         const analyzeAnotherBtn = document.getElementById('analyzeAnotherBtn');
         const downloadReportBtn = document.getElementById('downloadReportBtn');
-        
-        // Trigger file input
-        uploadBtn.addEventListener('click', () => imageInput.click());
-        uploadArea.addEventListener('click', (e) => {
-            if (e.target.tagName !== 'BUTTON') imageInput.click();
+
+        let currentResult = null;
+
+        // Click to upload
+        uploadArea.addEventListener('click', () => {
+            fileInput.click();
         });
-        
-        // Handle file selection
-        imageInput.addEventListener('change', (e) => {
+
+        // File input change
+        fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
-            if (file) handleFile(file);
+            if (file) {
+                handleFile(file);
+            }
         });
-        
+
         // Drag and drop
         uploadArea.addEventListener('dragover', (e) => {
             e.preventDefault();
-            uploadArea.style.borderColor = '#6366f1';
-            uploadArea.style.background = 'rgba(99, 102, 241, 0.1)';
+            uploadArea.classList.add('dragover');
         });
-        
+
         uploadArea.addEventListener('dragleave', () => {
-            uploadArea.style.borderColor = 'rgba(255, 255, 255, 0.3)';
-            uploadArea.style.background = 'transparent';
+            uploadArea.classList.remove('dragover');
         });
-        
+
         uploadArea.addEventListener('drop', (e) => {
             e.preventDefault();
-            uploadArea.style.borderColor = 'rgba(255, 255, 255, 0.3)';
-            uploadArea.style.background = 'transparent';
+            uploadArea.classList.remove('dragover');
             
             const file = e.dataTransfer.files[0];
             if (file && file.type.startsWith('image/')) {
                 handleFile(file);
+            } else {
+                showError('Please upload a valid image file');
             }
         });
-        
+
         // Analyze another
         analyzeAnotherBtn.addEventListener('click', () => {
-            resultSection.classList.add('hidden');
-            resultCard.classList.add('hidden');
-            imageInput.value = '';
+            resetUI();
         });
-        
+
         // Download report
         downloadReportBtn.addEventListener('click', downloadReport);
-        
-        async function handleFile(file) {
+
+        function handleFile(file) {
+            // Validate file
+            if (!file.type.startsWith('image/')) {
+                showError('Please select a valid image file');
+                return;
+            }
+
+            if (file.size > 16 * 1024 * 1024) {
+                showError('File size should be less than 16MB');
+                return;
+            }
+
+            // Hide any previous errors
+            hideError();
+            
             // Show preview
             const reader = new FileReader();
             reader.onload = (e) => {
                 imagePreview.src = e.target.result;
-                resultSection.classList.remove('hidden');
-                resultCard.classList.add('hidden');
-                loadingOverlay.classList.remove('hidden');
+                previewSection.classList.add('show');
+                resultsCard.classList.remove('show');
+                loadingOverlay.classList.add('show');
             };
             reader.readAsDataURL(file);
-            
+
             // Upload and analyze
+            analyzeImage(file);
+        }
+
+        async function analyzeImage(file) {
             const formData = new FormData();
             formData.append('image', file);
-            
+
             try {
                 const response = await fetch('/predict', {
                     method: 'POST',
                     body: formData
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (data.error) {
                     throw new Error(data.error);
                 }
+
+                // Hide loading
+                loadingOverlay.classList.remove('show');
                 
-                // Display results
-                displayResults(data);
+                // Store result
+                currentResult = {
+                    prediction: data.prediction,
+                    isDeepfake: data.is_deepfake,
+                    confidence: data.is_deepfake ? data.prediction : 1 - data.prediction,
+                    filename: file.name,
+                    timestamp: new Date().toISOString()
+                };
                 
+                // Show results
+                displayResults(currentResult);
+
             } catch (error) {
+                loadingOverlay.classList.remove('show');
+                showError('Error analyzing image: ' + error.message);
                 console.error('Error:', error);
-                loadingOverlay.classList.add('hidden');
-                alert('Error analyzing image: ' + error.message);
             }
         }
-        
-        function displayResults(data) {
-            loadingOverlay.classList.add('hidden');
+
+        function displayResults(result) {
+            const confidencePercent = Math.round(result.confidence * 100);
+            const isFake = result.isDeepfake;
+
+            // Update card styling
+            resultsCard.className = 'results-card ' + (isFake ? 'fake' : 'real');
             
-            const prediction = data.prediction;
-            const isDeepfake = data.is_deepfake;
-            const confidence = isDeepfake ? prediction : 1 - prediction;
-            const confidencePercent = Math.round(confidence * 100);
+            // Update icon
+            resultIcon.innerHTML = isFake 
+                ? '<i class="fas fa-exclamation-triangle"></i>' 
+                : '<i class="fas fa-check-circle"></i>';
             
-            // Store for report download
-            window.lastResult = {
-                prediction,
-                isDeepfake,
-                confidence: confidencePercent,
-                timestamp: new Date().toISOString()
-            };
+            // Update titles
+            resultTitle.textContent = isFake ? 'Deepfake Detected' : 'Authentic Image';
+            resultSubtitle.textContent = isFake 
+                ? 'This image shows signs of AI manipulation' 
+                : 'No signs of AI manipulation detected';
             
-            // Update UI
-            if (isDeepfake) {
-                resultIcon.className = 'w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center';
-                resultIcon.innerHTML = '<i class="fas fa-exclamation-triangle text-2xl text-red-400"></i>';
-                resultTitle.textContent = 'Deepfake Detected';
-                resultTitle.className = 'text-2xl font-bold text-red-400';
-                resultSubtitle.textContent = 'This image shows signs of AI manipulation';
-                confidenceFill.style.background = 'linear-gradient(90deg, #ef4444, #dc2626)';
-                confidenceFill.style.width = confidencePercent + '%';
-                
-                // 2-line explanation for deepfake
+            // Update confidence
+            confidenceValue.textContent = confidencePercent + '%';
+            confidenceBar.style.width = confidencePercent + '%';
+            
+            // Update explanation (2 lines)
+            if (isFake) {
                 explanationText.innerHTML = `
-                    <span class="font-medium text-red-300">⚠️ AI-Generated Content Detected:</span><br>
-                    <span class="text-gray-300">This image exhibits artificial patterns and inconsistencies typical of deepfake generation, particularly in facial features and texture uniformity.</span>
+                    <strong>⚠️ AI-Generated Content Detected:</strong> 
+                    This image exhibits artificial patterns and inconsistencies typical of deepfake generation, particularly in facial features and texture uniformity.
                 `;
             } else {
-                resultIcon.className = 'w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center';
-                resultIcon.innerHTML = '<i class="fas fa-check-circle text-2xl text-green-400"></i>';
-                resultTitle.textContent = 'Authentic Image';
-                resultTitle.className = 'text-2xl font-bold text-green-400';
-                resultSubtitle.textContent = 'No signs of AI manipulation detected';
-                confidenceFill.style.background = 'linear-gradient(90deg, #22c55e, #16a34a)';
-                confidenceFill.style.width = confidencePercent + '%';
-                
-                // 2-line explanation for authentic
                 explanationText.innerHTML = `
-                    <span class="font-medium text-green-300">✅ Natural Image Verified:</span><br>
-                    <span class="text-gray-300">Our analysis shows natural image characteristics with no detectable AI artifacts, indicating this is likely a genuine photograph.</span>
+                    <strong>✅ Natural Image Verified:</strong> 
+                    Our analysis shows natural image characteristics with no detectable AI artifacts, indicating this is likely a genuine photograph.
                 `;
             }
             
-            confidenceValue.textContent = confidencePercent + '%';
-            
-            resultCard.classList.remove('hidden');
+            // Show results card
+            resultsCard.classList.add('show');
         }
-        
+
+        function showError(message) {
+            errorText.textContent = message;
+            errorMessage.classList.add('show');
+            setTimeout(() => {
+                errorMessage.classList.remove('show');
+            }, 5000);
+        }
+
+        function hideError() {
+            errorMessage.classList.remove('show');
+        }
+
+        function resetUI() {
+            previewSection.classList.remove('show');
+            resultsCard.classList.remove('show');
+            imagePreview.src = '';
+            fileInput.value = '';
+            currentResult = null;
+        }
+
         function downloadReport() {
-            if (!window.lastResult) return;
-            
-            const r = window.lastResult;
+            if (!currentResult) {
+                showError('No analysis results to download');
+                return;
+            }
+
+            const r = currentResult;
             const date = new Date().toLocaleString();
             
             const report = `
-========================================
-       DEEPFAKE DETECTION REPORT
-========================================
+╔══════════════════════════════════════════╗
+║       DEEPFAKE DETECTION REPORT          ║
+╚══════════════════════════════════════════╝
 
 Date: ${date}
-Image: ${imageInput.files[0]?.name || 'Unknown'}
+File: ${r.filename}
 
-----------------------------------------
-RESULT: ${r.isDeepfake ? 'DEEPFAKE DETECTED' : 'AUTHENTIC IMAGE'}
-----------------------------------------
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RESULT: ${r.isDeepfake ? '⚠️ DEEPFAKE DETECTED' : '✅ AUTHENTIC IMAGE'}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Confidence Score: ${r.confidence}%
+Confidence Score: ${Math.round(r.confidence * 100)}%
 Raw Prediction: ${(r.prediction * 100).toFixed(2)}%
 Threshold: 70%
 
-----------------------------------------
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 EXPLANATION:
 ${r.isDeepfake ? 
-  'This image exhibits artificial patterns and inconsistencies typical\nof deepfake generation, particularly in facial features and texture.' :
-  'Our analysis shows natural image characteristics with no detectable\nAI artifacts, indicating this is likely a genuine photograph.'}
-----------------------------------------
+  'This image exhibits artificial patterns and inconsistencies\ntypical of deepfake generation, particularly in facial\nfeatures and texture uniformity.' :
+  'Our analysis shows natural image characteristics with no\ndetectable AI artifacts, indicating this is likely a\ngenuine photograph.'}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Model: CNN (128x128 input)
-Trained on: Deepfake detection datasets
+Trained on: Deepfake Detection Dataset
 
-Generated by Deepfake Detector AI
-========================================
+Generated by DeepDetect AI
+═══════════════════════════════════════════
             `.trim();
             
             const blob = new Blob([report], { type: 'text/plain' });
@@ -439,21 +763,22 @@ Generated by Deepfake Detector AI
             a.click();
             URL.revokeObjectURL(url);
         }
+
+        // Check model status on load
+        window.addEventListener('load', () => {
+            console.log('DeepDetect AI ready');
+        });
     </script>
 </body>
 </html>
 """
 
-
 @app.route('/')
 def index():
-    """Serve the main page."""
     return render_template_string(INDEX_HTML)
-
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    """Endpoint to receive an image and return deepfake prediction."""
     if model is None:
         return jsonify({'error': 'Model not loaded'}), 500
 
@@ -465,11 +790,9 @@ def predict():
         if file.filename == '':
             return jsonify({'error': 'No image selected'}), 400
 
-        # Read and process image
+        # Read and process
         file_data = file.read()
         image = Image.open(io.BytesIO(file_data))
-        
-        # Preprocess
         image_array = preprocess_image(image)
         
         # Predict
@@ -485,13 +808,12 @@ def predict():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-
 if __name__ == '__main__':
     print("\n" + "="*50)
-    print("🔍 Deepfake Detector Starting...")
+    print("🔍 DeepDetect AI Starting...")
     print("="*50)
-    print("✅ No login required - Ready to use!")
-    print("🌐 Open http://127.0.0.1:5000 in your browser")
+    print("✅ Model loaded and ready!")
+    print("🌐 Open http://127.0.0.1:5000")
     print("="*50 + "\n")
     
     app.run(debug=True, host='0.0.0.0', port=5000)
