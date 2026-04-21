@@ -15,415 +15,572 @@ input_details = None
 output_details = None
 
 try:
-    # Load the TFLite model and allocate tensors
     interpreter = tf.lite.Interpreter(model_path='deepfake_detector_model.tflite')
     interpreter.allocate_tensors()
-
-    # Get input and output tensors
     input_details = interpreter.get_input_details()
     output_details = interpreter.get_output_details()
-    
     print("✅ TFLite Model loaded successfully!")
 except Exception as e:
     print(f"❌ Error loading TFLite model: {e}")
 
 def preprocess_image(image):
-    """Preprocess image to 128x128 for model input"""
     image = image.resize((128, 128))
     if image.mode != 'RGB':
         image = image.convert('RGB')
-        
-    # Crucial for TFLite: Explicitly cast to float32
     image_array = np.array(image, dtype=np.float32) / 255.0
     image_array = np.expand_dims(image_array, axis=0)
     return image_array
 
-# ---------------------------------------------------------
-# Modern, Working UI Template
-# ---------------------------------------------------------
 INDEX_HTML = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DeepDetect AI | Deepfake Detection</title>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <title>DeepDetect AI | Forensic Deepfake Analysis</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Plus Jakarta Sans', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
-        .container { max-width: 900px; margin: 0 auto; }
-        .header { text-align: center; padding: 30px 20px; color: white; }
-        .logo { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 15px; }
-        .logo i { font-size: 40px; background: rgba(255,255,255,0.2); padding: 15px; border-radius: 20px; backdrop-filter: blur(10px); }
-        .logo h1 { font-size: 36px; font-weight: 700; }
-        .subtitle { font-size: 18px; opacity: 0.95; }
-        .main-card { background: rgba(255, 255, 255, 0.95); border-radius: 30px; padding: 40px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); backdrop-filter: blur(10px); }
-        .upload-area { border: 3px dashed #cbd5e1; border-radius: 20px; padding: 50px 30px; text-align: center; cursor: pointer; transition: all 0.3s ease; background: #f8fafc; }
-        .upload-area:hover, .upload-area.dragover { border-color: #667eea; background: #eef2ff; transform: translateY(-2px); }
-        .upload-icon { font-size: 60px; color: #667eea; margin-bottom: 20px; }
-        .upload-text { font-size: 20px; font-weight: 600; color: #1e293b; margin-bottom: 8px; }
-        .upload-hint { color: #64748b; font-size: 14px; }
-        .file-input { display: none; }
-        .preview-section { margin-top: 30px; display: none; }
-        .preview-section.show { display: block; }
-        .image-container { position: relative; border-radius: 20px; overflow: hidden; background: #f1f5f9; min-height: 300px; display: flex; align-items: center; justify-content: center; }
-        #imagePreview { max-width: 100%; max-height: 400px; display: block; margin: 0 auto; }
-        .loading-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.7); display: none; align-items: center; justify-content: center; flex-direction: column; color: white; }
-        .loading-overlay.show { display: flex; }
-        .spinner { width: 50px; height: 50px; border: 4px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 15px; }
+        :root {
+            --bg-base: #060810;
+            --bg-surface: #0d1117;
+            --bg-card: #111827;
+            --bg-card2: #161d2b;
+            --border: rgba(99, 179, 237, 0.12);
+            --border-glow: rgba(99, 179, 237, 0.35);
+            --accent: #38bdf8;
+            --accent2: #818cf8;
+            --accent3: #34d399;
+            --danger: #f87171;
+            --warn: #fbbf24;
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --text-muted: #475569;
+            --glow: 0 0 30px rgba(56, 189, 248, 0.15);
+            --font-display: 'Syne', sans-serif;
+            --font-mono: 'IBM Plex Mono', monospace;
+            --font-body: 'DM Sans', sans-serif;
+        }
+
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: var(--font-body);
+            background: var(--bg-base);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ── Background grid ── */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(56,189,248,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(56,189,248,0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* ── Ambient orbs ── */
+        .orb {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(80px);
+            pointer-events: none;
+            z-index: 0;
+            opacity: 0.4;
+        }
+        .orb-1 { width: 500px; height: 500px; background: radial-gradient(circle, rgba(56,189,248,0.2), transparent 70%); top: -150px; left: -150px; animation: float 12s ease-in-out infinite; }
+        .orb-2 { width: 400px; height: 400px; background: radial-gradient(circle, rgba(129,140,248,0.15), transparent 70%); bottom: -100px; right: -100px; animation: float 15s ease-in-out infinite reverse; }
+        .orb-3 { width: 300px; height: 300px; background: radial-gradient(circle, rgba(52,211,153,0.1), transparent 70%); top: 50%; left: 50%; transform: translate(-50%,-50%); animation: pulse-orb 8s ease-in-out infinite; }
+        @keyframes float { 0%,100% { transform: translate(0,0); } 50% { transform: translate(30px, 20px); } }
+        @keyframes pulse-orb { 0%,100% { opacity: 0.15; transform: translate(-50%,-50%) scale(1); } 50% { opacity: 0.3; transform: translate(-50%,-50%) scale(1.2); } }
+
+        /* ── Navigation ── */
+        nav {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 18px 48px;
+            background: rgba(6,8,16,0.8);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+        }
+        .nav-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-family: var(--font-display);
+            font-size: 20px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+        }
+        .nav-logo .dot { color: var(--accent); }
+        .nav-logo .icon-wrap {
+            width: 34px; height: 34px;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px; color: #000;
+        }
+        .nav-links {
+            display: flex;
+            gap: 32px;
+            list-style: none;
+        }
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: color 0.2s;
+            font-family: var(--font-mono);
+            letter-spacing: 0.5px;
+        }
+        .nav-links a:hover { color: var(--accent); }
+        .nav-badge {
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            color: #000;
+            font-family: var(--font-mono);
+            font-size: 11px;
+            font-weight: 600;
+            padding: 6px 14px;
+            border-radius: 20px;
+            letter-spacing: 0.5px;
+        }
+
+        /* ── Page layout ── */
+        .page-wrap {
+            position: relative;
+            z-index: 1;
+            padding-top: 80px;
+        }
+
+        /* ── Hero ── */
+        .hero {
+            text-align: center;
+            padding: 80px 24px 60px;
+            max-width: 780px;
+            margin: 0 auto;
+        }
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(56,189,248,0.08);
+            border: 1px solid rgba(56,189,248,0.2);
+            color: var(--accent);
+            font-family: var(--font-mono);
+            font-size: 11px;
+            font-weight: 500;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            padding: 7px 16px;
+            border-radius: 20px;
+            margin-bottom: 28px;
+        }
+        .hero-badge .pulse-dot {
+            width: 6px; height: 6px;
+            background: var(--accent3);
+            border-radius: 50%;
+            animation: blink 1.5s ease-in-out infinite;
+        }
+        @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.2; } }
+        .hero h1 {
+            font-family: var(--font-display);
+            font-size: clamp(38px, 6vw, 68px);
+            font-weight: 800;
+            line-height: 1.05;
+            letter-spacing: -2px;
+            margin-bottom: 20px;
+        }
+        .hero h1 .line-accent {
+            background: linear-gradient(90deg, var(--accent), var(--accent2));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .hero p {
+            color: var(--text-secondary);
+            font-size: 17px;
+            line-height: 1.7;
+            max-width: 560px;
+            margin: 0 auto;
+        }
+        .hero-stats {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            margin-top: 40px;
+            padding-top: 40px;
+            border-top: 1px solid var(--border);
+        }
+        .stat { text-align: center; }
+        .stat-num {
+            font-family: var(--font-display);
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--accent);
+            letter-spacing: -1px;
+        }
+        .stat-label {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 4px;
+        }
+
+        /* ── Analyze Section ── */
+        #analyze {
+            max-width: 920px;
+            margin: 0 auto 80px;
+            padding: 0 24px;
+        }
+
+        .section-label {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            margin-bottom: 12px;
+        }
+        .section-title {
+            font-family: var(--font-display);
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            margin-bottom: 32px;
+        }
+
+        /* Upload drop zone */
+        .upload-zone {
+            border: 1.5px dashed rgba(56,189,248,0.25);
+            border-radius: 20px;
+            padding: 60px 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: rgba(13,17,23,0.6);
+            position: relative;
+            overflow: hidden;
+        }
+        .upload-zone::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(ellipse at center, rgba(56,189,248,0.04), transparent 70%);
+            pointer-events: none;
+        }
+        .upload-zone:hover, .upload-zone.drag-over {
+            border-color: var(--accent);
+            background: rgba(56,189,248,0.05);
+            box-shadow: 0 0 40px rgba(56,189,248,0.08), inset 0 0 40px rgba(56,189,248,0.03);
+        }
+        .upload-zone:hover .upload-icon-wrap { transform: translateY(-4px); }
+        .upload-icon-wrap {
+            width: 72px; height: 72px;
+            margin: 0 auto 20px;
+            background: linear-gradient(135deg, rgba(56,189,248,0.12), rgba(129,140,248,0.12));
+            border: 1px solid rgba(56,189,248,0.2);
+            border-radius: 20px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 28px;
+            color: var(--accent);
+            transition: transform 0.3s ease;
+        }
+        .upload-title {
+            font-family: var(--font-display);
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        .upload-sub {
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-family: var(--font-mono);
+        }
+        .upload-formats {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 20px;
+        }
+        .fmt-tag {
+            background: rgba(56,189,248,0.08);
+            border: 1px solid rgba(56,189,248,0.15);
+            color: var(--accent);
+            font-family: var(--font-mono);
+            font-size: 10px;
+            padding: 4px 10px;
+            border-radius: 4px;
+            letter-spacing: 1px;
+        }
+        input[type=file] { display: none; }
+
+        /* ── Analysis Panel ── */
+        .analysis-panel {
+            display: none;
+            margin-top: 24px;
+            gap: 24px;
+        }
+        .analysis-panel.show { display: grid; grid-template-columns: 1fr 1fr; }
+
+        .panel-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            overflow: hidden;
+        }
+
+        /* Image preview */
+        .img-preview-wrap {
+            position: relative;
+            min-height: 280px;
+            display: flex; align-items: center; justify-content: center;
+            background: #08090f;
+        }
+        #imagePreview {
+            max-width: 100%;
+            max-height: 340px;
+            display: block;
+        }
+
+        /* Scan overlay */
+        .scan-overlay {
+            position: absolute;
+            inset: 0;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(6,8,16,0.85);
+            backdrop-filter: blur(4px);
+        }
+        .scan-overlay.show { display: flex; }
+        .scan-line {
+            position: absolute;
+            left: 0; right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--accent), transparent);
+            box-shadow: 0 0 12px var(--accent);
+            animation: scan 2.5s ease-in-out infinite;
+            top: 0;
+        }
+        @keyframes scan { 0% { top: 0; } 100% { top: 100%; } }
+        .scan-grid {
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(56,189,248,0.04) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(56,189,248,0.04) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        .scan-info {
+            position: relative;
+            text-align: center;
+            z-index: 2;
+        }
+        .scan-spinner {
+            width: 48px; height: 48px;
+            border: 2px solid rgba(56,189,248,0.2);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 16px;
+        }
         @keyframes spin { to { transform: rotate(360deg); } }
-        .results-card { margin-top: 30px; padding: 30px; border-radius: 20px; display: none; animation: slideUp 0.5s ease; }
-        .results-card.show { display: block; }
-        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        .results-card.real { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; }
-        .results-card.fake { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; }
-        .result-header { display: flex; align-items: center; gap: 15px; margin-bottom: 20px; }
-        .result-icon { font-size: 40px; width: 70px; height: 70px; background: rgba(255,255,255,0.2); border-radius: 20px; display: flex; align-items: center; justify-content: center; }
-        .result-title { flex: 1; }
-        .result-title h3 { font-size: 28px; font-weight: 700; margin-bottom: 5px; }
-        .result-title p { opacity: 0.9; font-size: 14px; }
-        .confidence-meter { margin: 25px 0; }
-        .confidence-label { display: flex; justify-content: space-between; margin-bottom: 10px; font-weight: 500; }
-        .confidence-bar-bg { height: 12px; background: rgba(255,255,255,0.2); border-radius: 10px; overflow: hidden; }
-        .confidence-bar-fill { height: 100%; background: white; border-radius: 10px; width: 0%; transition: width 1s ease; }
-        .explanation-box { background: rgba(255,255,255,0.15); padding: 20px; border-radius: 15px; margin: 20px 0; border-left: 4px solid rgba(255,255,255,0.5); }
-        .explanation-box i { margin-right: 10px; color: #fbbf24; }
-        .explanation-box p { line-height: 1.6; font-size: 15px; }
-        .action-buttons { display: flex; gap: 15px; margin-top: 25px; }
-        .btn { padding: 14px 24px; border: none; border-radius: 15px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
-        .btn-primary { background: white; color: #1e293b; flex: 1; }
-        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(0,0,0,0.2); }
-        .btn-secondary { background: rgba(255,255,255,0.2); color: white; flex: 1; }
-        .btn-secondary:hover { background: rgba(255,255,255,0.3); }
-        .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-top: 30px; }
-        .feature-card { background: white; padding: 25px; border-radius: 20px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-        .feature-card i { font-size: 30px; color: #667eea; margin-bottom: 15px; }
-        .feature-card h4 { font-size: 18px; margin-bottom: 8px; color: #1e293b; }
-        .feature-card p { font-size: 14px; color: #64748b; }
-        .error-message { background: #fee; color: #c33; padding: 15px 20px; border-radius: 15px; margin-top: 20px; display: none; border-left: 4px solid #c33; }
-        .error-message.show { display: block; }
-        @media (max-width: 600px) {
-            .main-card { padding: 25px; }
-            .logo h1 { font-size: 28px; }
-            .upload-area { padding: 30px 20px; }
-            .action-buttons { flex-direction: column; }
-            .result-title h3 { font-size: 22px; }
+        .scan-label {
+            font-family: var(--font-mono);
+            font-size: 12px;
+            color: var(--accent);
+            letter-spacing: 2px;
+            text-transform: uppercase;
         }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <div class="logo">
-                <i class="fas fa-shield-halved"></i>
-                <h1>DeepDetect AI</h1>
-            </div>
-            <p class="subtitle">Advanced Deepfake Detection using TFLite</p>
-        </div>
+        .scan-sub {
+            font-family: var(--font-mono);
+            font-size: 10px;
+            color: var(--text-muted);
+            margin-top: 6px;
+        }
+        /* Corner marks */
+        .corner { position: absolute; width: 20px; height: 20px; border-color: var(--accent); border-style: solid; opacity: 0.6; }
+        .corner-tl { top: 12px; left: 12px; border-width: 2px 0 0 2px; }
+        .corner-tr { top: 12px; right: 12px; border-width: 2px 2px 0 0; }
+        .corner-bl { bottom: 12px; left: 12px; border-width: 0 0 2px 2px; }
+        .corner-br { bottom: 12px; right: 12px; border-width: 0 2px 2px 0; }
 
-        <div class="main-card">
-            <div class="upload-area" id="uploadArea">
-                <input type="file" id="fileInput" class="file-input" accept="image/png,image/jpeg,image/jpg,image/webp,image/bmp">
-                <div class="upload-icon"><i class="fas fa-cloud-upload-alt"></i></div>
-                <div class="upload-text">Choose an image or drag it here</div>
-                <div class="upload-hint">PNG, JPG, WEBP up to 16MB</div>
-            </div>
+        .panel-body { padding: 24px; }
 
-            <div class="error-message" id="errorMessage">
-                <i class="fas fa-exclamation-circle"></i>
-                <span id="errorText"></span>
-            </div>
+        /* Result card */
+        .result-display { display: none; }
+        .result-display.show { display: block; }
 
-            <div class="preview-section" id="previewSection">
-                <div class="image-container">
-                    <img id="imagePreview" src="" alt="Preview">
-                    <div class="loading-overlay" id="loadingOverlay">
-                        <div class="spinner"></div>
-                        <p>Analyzing image with AI...</p>
-                        <p style="font-size: 14px; margin-top: 8px; opacity: 0.8;">This may take a few seconds</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="results-card" id="resultsCard">
-                <div class="result-header">
-                    <div class="result-icon" id="resultIcon">
-                        <i class="fas fa-check-circle"></i>
-                    </div>
-                    <div class="result-title">
-                        <h3 id="resultTitle">Authentic Image</h3>
-                        <p id="resultSubtitle">No signs of AI manipulation detected</p>
-                    </div>
-                </div>
-
-                <div class="confidence-meter">
-                    <div class="confidence-label">
-                        <span>Confidence Level</span>
-                        <span id="confidenceValue">95%</span>
-                    </div>
-                    <div class="confidence-bar-bg">
-                        <div class="confidence-bar-fill" id="confidenceBar"></div>
-                    </div>
-                </div>
-
-                <div class="explanation-box">
-                    <p>
-                        <i class="fas fa-info-circle"></i>
-                        <span id="explanationText">Our AI model analyzed this image and found natural patterns consistent with authentic photographs.</span>
-                    </p>
-                </div>
-
-                <div class="action-buttons">
-                    <button class="btn btn-primary" id="analyzeAnotherBtn">
-                        <i class="fas fa-upload"></i> Analyze Another
-                    </button>
-                    <button class="btn btn-secondary" id="downloadReportBtn">
-                        <i class="fas fa-download"></i> Download Report
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <div class="features-grid">
-            <div class="feature-card">
-                <i class="fas fa-brain"></i>
-                <h4>TFLite Model</h4>
-                <p>Fast, lightweight 128x128 input trained on extensive deepfake datasets</p>
-            </div>
-            <div class="feature-card">
-                <i class="fas fa-bolt"></i>
-                <h4>Real-time Analysis</h4>
-                <p>Get results instantly using optimized edge-inference</p>
-            </div>
-            <div class="feature-card">
-                <i class="fas fa-shield"></i>
-                <h4>High Accuracy</h4>
-                <p>Reliable detection rate on known deepfakes</p>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        const uploadArea = document.getElementById('uploadArea');
-        const fileInput = document.getElementById('fileInput');
-        const previewSection = document.getElementById('previewSection');
-        const imagePreview = document.getElementById('imagePreview');
-        const loadingOverlay = document.getElementById('loadingOverlay');
-        const resultsCard = document.getElementById('resultsCard');
-        const resultIcon = document.getElementById('resultIcon');
-        const resultTitle = document.getElementById('resultTitle');
-        const resultSubtitle = document.getElementById('resultSubtitle');
-        const confidenceValue = document.getElementById('confidenceValue');
-        const confidenceBar = document.getElementById('confidenceBar');
-        const explanationText = document.getElementById('explanationText');
-        const errorMessage = document.getElementById('errorMessage');
-        const errorText = document.getElementById('errorText');
-        const analyzeAnotherBtn = document.getElementById('analyzeAnotherBtn');
-        const downloadReportBtn = document.getElementById('downloadReportBtn');
-
-        let currentResult = null;
-
-        uploadArea.addEventListener('click', () => fileInput.click());
-
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files[0]) handleFile(e.target.files[0]);
-        });
-
-        uploadArea.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            uploadArea.classList.add('dragover');
-        });
-
-        uploadArea.addEventListener('dragleave', () => {
-            uploadArea.classList.remove('dragover');
-        });
-
-        uploadArea.addEventListener('drop', (e) => {
-            e.preventDefault();
-            uploadArea.classList.remove('dragover');
-            const file = e.dataTransfer.files[0];
-            if (file && file.type.startsWith('image/')) {
-                handleFile(file);
-            } else {
-                showError('Please upload a valid image file');
-            }
-        });
-
-        analyzeAnotherBtn.addEventListener('click', () => {
-            previewSection.classList.remove('show');
-            resultsCard.classList.remove('show');
-            imagePreview.src = '';
-            fileInput.value = '';
-            currentResult = null;
-        });
-
-        downloadReportBtn.addEventListener('click', () => {
-            if (!currentResult) {
-                showError('No analysis results to download');
-                return;
-            }
-            const r = currentResult;
-            const report = `
-╔══════════════════════════════════════════╗
-║        DEEPFAKE DETECTION REPORT         ║
-╚══════════════════════════════════════════╝
-
-Date: ${new Date().toLocaleString()}
-File: ${r.filename}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-RESULT: ${r.isDeepfake ? '⚠️ DEEPFAKE DETECTED' : '✅ AUTHENTIC IMAGE'}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Confidence Score: ${Math.round(r.confidence * 100)}%
-Raw Prediction: ${(r.prediction * 100).toFixed(2)}%
-Threshold: 70%
-
-Model: TFLite (128x128 input)
-Generated by DeepDetect AI
-═══════════════════════════════════════════`.trim();
-            const blob = new Blob([report], { type: 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `deepfake-report-${Date.now()}.txt`;
-            a.click();
-            URL.revokeObjectURL(url);
-        });
-
-        function handleFile(file) {
-            if (!file.type.startsWith('image/')) {
-                showError('Please select a valid image file');
-                return;
-            }
-            if (file.size > 16 * 1024 * 1024) {
-                showError('File size should be less than 16MB');
-                return;
-            }
-
-            errorMessage.classList.remove('show');
-            
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                imagePreview.src = e.target.result;
-                previewSection.classList.add('show');
-                resultsCard.classList.remove('show');
-                loadingOverlay.classList.add('show');
-            };
-            reader.readAsDataURL(file);
-
-            analyzeImage(file);
+        .verdict-banner {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 20px;
+            border-radius: 14px;
+            margin-bottom: 20px;
+        }
+        .verdict-banner.authentic {
+            background: linear-gradient(135deg, rgba(52,211,153,0.1), rgba(52,211,153,0.05));
+            border: 1px solid rgba(52,211,153,0.25);
+        }
+        .verdict-banner.deepfake {
+            background: linear-gradient(135deg, rgba(248,113,113,0.1), rgba(248,113,113,0.05));
+            border: 1px solid rgba(248,113,113,0.25);
+        }
+        .verdict-icon {
+            width: 52px; height: 52px;
+            border-radius: 14px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 22px;
+            flex-shrink: 0;
+        }
+        .authentic .verdict-icon { background: rgba(52,211,153,0.15); color: var(--accent3); }
+        .deepfake .verdict-icon { background: rgba(248,113,113,0.15); color: var(--danger); }
+        .verdict-text h3 {
+            font-family: var(--font-display);
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        .authentic .verdict-text h3 { color: var(--accent3); }
+        .deepfake .verdict-text h3 { color: var(--danger); }
+        .verdict-text p {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--text-muted);
+            letter-spacing: 0.5px;
         }
 
-        async function analyzeImage(file) {
-            const formData = new FormData();
-            formData.append('image', file);
+        /* Metrics */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .metric-block {
+            background: var(--bg-card2);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px 16px;
+        }
+        .metric-block .m-label {
+            font-family: var(--font-mono);
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 6px;
+        }
+        .metric-block .m-val {
+            font-family: var(--font-display);
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .metric-block .m-val.green { color: var(--accent3); }
+        .metric-block .m-val.red { color: var(--danger); }
+        .metric-block .m-val.blue { color: var(--accent); }
 
-            try {
-                const response = await fetch('/predict', { method: 'POST', body: formData });
-                const data = await response.json();
+        /* Confidence bar */
+        .conf-section { margin-bottom: 20px; }
+        .conf-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .conf-header span:first-child {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .conf-pct {
+            font-family: var(--font-display);
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--accent);
+        }
+        .bar-track {
+            height: 8px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .bar-fill {
+            height: 100%;
+            border-radius: 10px;
+            width: 0%;
+            transition: width 1.2s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        .bar-fill.authentic-bar { background: linear-gradient(90deg, var(--accent3), #6ee7b7); box-shadow: 0 0 8px rgba(52,211,153,0.4); }
+        .bar-fill.deepfake-bar { background: linear-gradient(90deg, var(--danger), #fca5a5); box-shadow: 0 0 8px rgba(248,113,113,0.4); }
 
-                if (data.error) throw new Error(data.error);
-
-                loadingOverlay.classList.remove('show');
-                
-                currentResult = {
-                    prediction: data.prediction,
-                    isDeepfake: data.is_deepfake,
-                    confidence: data.is_deepfake ? data.prediction : 1 - data.prediction,
-                    filename: file.name
-                };
-                
-                const confidencePercent = Math.round(currentResult.confidence * 100);
-                const isFake = currentResult.isDeepfake;
-
-                resultsCard.className = 'results-card ' + (isFake ? 'fake' : 'real');
-                resultIcon.innerHTML = isFake ? '<i class="fas fa-exclamation-triangle"></i>' : '<i class="fas fa-check-circle"></i>';
-                resultTitle.textContent = isFake ? 'Deepfake Detected' : 'Authentic Image';
-                resultSubtitle.textContent = isFake ? 'This image shows signs of AI manipulation' : 'No signs of AI manipulation detected';
-                confidenceValue.textContent = confidencePercent + '%';
-                confidenceBar.style.width = confidencePercent + '%';
-                
-                if (isFake) {
-                    explanationText.innerHTML = `<strong>⚠️ AI-Generated Content Detected:</strong> This image exhibits artificial patterns and inconsistencies typical of deepfake generation.`;
-                } else {
-                    explanationText.innerHTML = `<strong>✅ Natural Image Verified:</strong> Our analysis shows natural image characteristics with no detectable AI artifacts.`;
-                }
-                
-                resultsCard.classList.add('show');
-
-            } catch (error) {
-                loadingOverlay.classList.remove('show');
-                showError('Error analyzing image: ' + error.message);
-                console.error('Error:', error);
-            }
+        /* Risk segments */
+        .risk-segments {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+        .risk-seg {
+            background: var(--bg-card2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 10px 12px;
+            text-align: center;
+        }
+        .risk-seg .rs-label {
+            font-family: var(--font-mono);
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+        .risk-seg .rs-val {
+            font-family: var(--font-mono);
+            font-size: 13px;
+            font-weight: 500;
         }
 
-        function showError(message) {
-            errorText.textContent = message;
-            errorMessage.classList.add('show');
-            setTimeout(() => errorMessage.classList.remove('show'), 5000);
+        /* Action buttons */
+        .action-row {
+            display: flex;
+            gap: 10px;
         }
-    </script>
-</body>
-</html>
-"""
-
-@app.route('/')
-def index():
-    return render_template_string(INDEX_HTML)
-
-@app.route('/predict', methods=['POST'])
-def predict():
-    if interpreter is None:
-        return jsonify({'error': 'TFLite Model not loaded properly'}), 500
-
-    try:
-        if 'image' not in request.files:
-            return jsonify({'error': 'No image provided'}), 400
-
-        file = request.files['image']
-        if file.filename == '':
-            return jsonify({'error': 'No image selected'}), 400
-
-        # Read and process image
-        file_data = file.read()
-        image = Image.open(io.BytesIO(file_data))
-        image_array = preprocess_image(image)
-        
-        # ---------------------------------------------------------
-        # TFLite Inference
-        # ---------------------------------------------------------
-        # Set the tensor to point to the input data to be inferred
-        interpreter.set_tensor(input_details[0]['index'], image_array)
-        
-        # Run the inference
-        interpreter.invoke()
-        
-        # Extract the output prediction
-        prediction_output = interpreter.get_tensor(output_details[0]['index'])
-        prediction = float(prediction_output[0][0])
-        
-        is_deepfake = prediction > 0.7
-        
-        return jsonify({
-            'prediction': prediction,
-            'is_deepfake': is_deepfake,
-            'threshold': 0.7
-        })
-
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-if __name__ == '__main__':
-    print("\n" + "="*50)
-    print("🔍 DeepDetect AI Starting...")
-    print("="*50)
-    if interpreter:
-        print("✅ TFLite Model loaded and ready!")
-    else:
-        print("⚠️ Warning: TFLite model failed to load. Check the file path.")
-    print("🌐 Open http://127.0.0.1:5000")
-    print("="*50 + "\n")
-    
-    app.run(debug=True, host='0.0.0.0', port=5000)
+        .btn {
+            flex: 1;
+            padding: 12px 16px;
+            border: none;
+            border-radius: 12px;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+        }
+        .btn-outline {
+            background: transparent;
